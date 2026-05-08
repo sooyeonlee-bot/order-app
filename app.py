@@ -140,6 +140,8 @@ def build_result(df1, df2):
                     "적정재고": int(n(r.get("적정재고"))),
                     "CPP": cpp_out,
                     "권고발주량": oqty,
+                    "발주후월말예상재고": prev + oqty - int(n(r.get(f"예측수량_{month}"))),
+                    "소진가능개월수": round((prev + oqty - int(n(r.get(f"예측수량_{month}")))) / n(r.get("12개월평균")) , 1) if n(r.get("12개월평균")) > 0 else None,
                     "상태": status,
                 }
             )
@@ -177,9 +179,9 @@ def to_excel_bytes(rdf):
     MONTHS = ["2026-05", "2026-06", "2026-07"]
     COLS = ["품목코드","색상코드","품목명","브랜드","공급처","사용구분","용도구분",
             "12개월평균출고","발주월","출고예상","직전월말예상재고","월말목표재고",
-            "안전재고","적정재고","CPP","권고발주량","상태"]
-    WIDS = [14,8,24,8,14,8,12,10,9,9,12,12,8,8,6,10,8]
-    ALNS = [L,C,L,C,L,C,C,R,C,R,R,R,R,R,R,R,C]
+            "안전재고","적정재고","CPP","권고발주량","발주후월말예상재고","소진가능개월수","상태"]
+    WIDS = [14,8,24,8,14,8,12,10,9,9,12,12,8,8,6,10,12,12,8]
+    ALNS = [L,C,L,C,L,C,C,R,C,R,R,R,R,R,R,R,R,R,C]
 
     ws1 = wb.active; ws1.title = "발주량_통합"; ws1.freeze_panes = "J2"
     ws1.row_dimensions[1].height = 28
@@ -196,7 +198,7 @@ def to_excel_bytes(rdf):
             elif isinstance(val, float) and col not in ["12개월평균출고"] and val == int(val):
                 val = int(val)
             is_num = isinstance(val, (int, float)) and col not in ["CPP"]
-            fmt = "#,##0.0" if col == "12개월평균출고" else ("#,##0" if is_num and val != "" else None)
+            fmt = "#,##0.0" if col in ["12개월평균출고","소진가능개월수"] else ("#,##0" if is_num and val != "" else None)
             fill = STATUS_F.get(st_val) if col == "상태" else bg
             fnt = BLUE_B if col == "권고발주량" else BODY
             sc(ws1, ri, ci, val, al=al, font=fnt, fill=fill, fmt=fmt)
@@ -226,8 +228,8 @@ def to_excel_bytes(rdf):
     ws3.auto_filter.ref = "A1:E1"
 
     ws4 = wb.create_sheet("발주서_공급처별"); ws4.row_dimensions[1].height = 28
-    ORDER_COLS = ["공급처","품목코드","색상코드","품목명","브랜드","발주월","출고예상","권고발주량","CPP"]
-    ORDER_W    = [16,14,8,24,8,9,10,10,7]
+    ORDER_COLS = ["공급처","품목코드","색상코드","품목명","브랜드","발주월","출고예상","권고발주량","발주후월말예상재고","소진가능개월수","CPP"]
+    ORDER_W    = [16,14,8,24,8,9,10,10,12,10,7]
     for ci, (c, w) in enumerate(zip(ORDER_COLS, ORDER_W), 1):
         h(ws4, 1, ci, c); ws4.column_dimensions[get_column_letter(ci)].width = w
     order_data = filtered.sort_values(["공급처","발주월"])
@@ -444,7 +446,7 @@ elif menu == "📊 발주량 결과":
     if brand_filter != "전체":
         disp = disp[disp["브랜드"]==brand_filter]
 
-    show_cols = ["품목코드","색상코드","품목명","브랜드","공급처","발주월","출고예상","직전월말예상재고","월말목표재고","안전재고","CPP","권고발주량","상태"]
+    show_cols = ["품목코드","색상코드","품목명","브랜드","공급처","발주월","출고예상","직전월말예상재고","월말목표재고","안전재고","CPP","권고발주량","발주후월말예상재고","소진가능개월수","상태"]
     st.dataframe(
         disp[show_cols].reset_index(drop=True),
         use_container_width=True,
@@ -452,6 +454,8 @@ elif menu == "📊 발주량 결과":
         column_config={
             "권고발주량": st.column_config.NumberColumn(format="%d"),
             "출고예상": st.column_config.NumberColumn(format="%d"),
+            "발주후월말예상재고": st.column_config.NumberColumn(format="%d"),
+            "소진가능개월수": st.column_config.NumberColumn(format="%.1f"),
         }
     )
     st.caption(f"총 {len(disp):,}건 표시 중")
